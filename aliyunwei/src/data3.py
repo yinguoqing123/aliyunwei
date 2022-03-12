@@ -69,10 +69,10 @@ def seqfilter(time_seq, msg_seq, time):
     time_msg_seq = list(zip(time_seq, msg_seq))
     time_msg_seq.sort(key=lambda x: x[0])
     time = datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S')
+    time_minus24h = time - datetime.timedelta(hours=24)
     for i in range(len(time_msg_seq)):
         cur_time = datetime.datetime.strptime(time_msg_seq[i][0], '%Y-%m-%d %H:%M:%S')
-        cur_time_minus24h = cur_time - datetime.timedelta(hours=24)
-        if  cur_time_minus24h < cur_time < time:
+        if  time_minus24h < cur_time < time:
             msg = time_msg_seq[i][1]
             #if i > 0 and msg == time_msg_seq[i-1][1]:
             #    continue
