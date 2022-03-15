@@ -1,4 +1,5 @@
-# 序列格式微调
+# 序列格式微调  加入位置position  
+
 from numpy import pad
 import torch
 from torch import nn, optim
@@ -13,6 +14,23 @@ from sklearn.model_selection import train_test_split, KFold
 from ema import EMA
 from torch.optim.lr_scheduler import *
 from utils import MyDataSet4, macro_f1, DiceLoss
+import random
+import os
+import math
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+
+    torch.backends.cudnn.enabled = False 
+    torch.backends.cudnn.benchmark = False
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+set_seed(2022)
 
 train_set = pd.read_csv('../data/train_set4.csv')
 submit_df = pd.read_csv('../data/submit_df4.csv')
@@ -33,7 +51,7 @@ class AttentionPooling1D(nn.Module):
         xo, mask = inputs
         mask = mask.unsqueeze(-1)
         x = self.k_dense(xo)
-        x = self.o_dense(F.tanh(x))  # N, s, 1
+        x = self.o_dense(torch.tanh(x))  # N, s, 1
         x = x - (1 - mask) * 1e12
         x = F.softmax(x, dim=-2)  # N, w, 1
         return torch.sum(x * xo, dim=-2) # N*emd
@@ -42,14 +60,17 @@ class Model(nn.Module):
     def __init__(self) -> None:
         super(Model, self).__init__()
         self.emb1 = nn.Embedding(len(lookup1), 16, padding_idx=0)
-        self.emb2 = nn.Embedding(88, 16, padding_idx=0)
+        self.emb2 = nn.Embedding(88, 10, padding_idx=0)
         self.emb3 = nn.Embedding(intervalbucketnum, 8)
         self.emb4 = nn.Embedding(cntbucketnum, 4)
         self.emb5 = nn.Embedding(durationbucketnum, 4)
         self.lstm = nn.LSTM(64, 32, batch_first=True, bidirectional=False)
+        self.position_emb = nn.Embedding(51, 64)
+        self.position_emb_init(64)
         self.att = AttentionPooling1D(64)
-        self.classify = nn.Linear(116, 4)
+        self.classify = nn.Linear(74, 4)
         self.orthogonal_weights()
+        self.register_buffer("position_ids", torch.arange(51).expand((1, -1)))
         self.classify.bias.data = torch.tensor([-2.38883658, -1.57741002, -0.57731536, -1.96360971])
 
         
@@ -64,15 +85,17 @@ class Model(nn.Module):
         server_model = self.emb2(server_model)
         word_emb = word_emb.reshape(b, s, w*d)
         word_emb = torch.concat([word_emb, emd_interval, emb_cnt, emb_duration], dim=-1)
+        position_emb = self.position_emb(self.position_ids[:, :s])
         # word_emb attention
-        att_emb = self.att((word_emb, mask))
-        word_emb_pack = pack_padded_sequence(word_emb, len_seq, batch_first=True,enforce_sorted=False)
-        word_emb, _ = self.lstm(word_emb_pack) 
-        word_emb, _ = pad_packed_sequence(word_emb, batch_first=True) # b, s, d
-        interval_range = torch.arange(0, b*s, s) + len_seq - 1 
-        word_emb = torch.index_select(word_emb.reshape(b*s, -1), 0, interval_range).reshape(b, -1)  # batch_size * emb_dim
-        feat5 =  torch.sum(feat5, dim=-2)/torch.tile(len_seq.unsqueeze(dim=-1), (4,)) # (b, s, 4) --> (b, 4)
-        score = self.classify(torch.concat([word_emb, server_model, att_emb, feat5], dim=-1))
+        att_emb = self.att((word_emb+position_emb, mask))
+        #word_emb_pack = pack_padded_sequence(word_emb, len_seq, batch_first=True,enforce_sorted=False)
+        #word_emb, _ = self.lstm(word_emb_pack) 
+        #word_emb, _ = pad_packed_sequence(word_emb, batch_first=True) # b, s, d
+        #interval_range = torch.arange(0, b*s, s) + len_seq - 1 
+        #word_emb = torch.index_select(word_emb.reshape(b*s, -1), 0, interval_range).reshape(b, -1)  # batch_size * emb_dim
+        #feat5 =  torch.sum(feat5, dim=-2)/torch.tile(len_seq.unsqueeze(dim=-1), (4,)) # (b, s, 4) --> (b, 4)
+        #score = self.classify(torch.concat([word_emb, server_model, att_emb, feat5], dim=-1))
+        score = self.classify(torch.concat([server_model, att_emb], dim=-1))
         
         return score
     
@@ -90,18 +113,40 @@ class Model(nn.Module):
         self.emb3.weight.data = featmatrix1
         self.emb4.weight.requires_grad = False
         self.emb4.weight.data = featmatrix2
+        
+    def position_emb_init(self, dim):
+        self.position_emb.weight.requires_grad = False
+        self.position_emb.weight.data = self.positionalencoding1d(dim, 50)
+        
+    def positionalencoding1d(self, d_model, length):
+        """
+            :param d_model: dimension of the model
+            :param length: length of positions
+            :return: length*d_model position matrix
+        """
+        if d_model % 2 != 0:
+            raise ValueError("Cannot use sin/cos positional encoding with "
+                            "odd dim (got dim={:d})".format(d_model))
+        pe = torch.zeros(length, d_model)
+        position = torch.arange(0, length).unsqueeze(1)
+        div_term = torch.exp((torch.arange(0, d_model, 2, dtype=torch.float) *
+                            -(math.log(10000.0) / d_model)))
+        pe[:, 0::2] = torch.sin(position.float() * div_term)
+        pe[:, 1::2] = torch.cos(position.float() * div_term)
+        return pe
 
 
 model = Model()
 def train_and_evaluate(train_set_, test_set_, submit_set_, name):
     model = Model() 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=5)
+    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.2, patience=4)
     #lr_sche = LambdaLR(optimizer, lr_lambda)
     train_set_ = MyDataSet4(train_set_)
     test_df = test_set_
     test_set_ = MyDataSet4(test_set_, mode='test')
     criterion = nn.CrossEntropyLoss(weight=torch.tensor([2.0, 2.0, 1.0, 1.0]))
+    #criterion = nn.CrossEntropyLoss()
     #criterion = DiceLoss(weight=torch.tensor([1.5, 1.5, 1.0, 1.0]), coff1=1, coff2=0.5)
     train_data = iter(train_set_)
     test_data = iter(test_set_)
@@ -132,14 +177,16 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name):
         test_df['pred'] = preds
         macro_F1 =  macro_f1(test_df)
         if macro_F1 > best_f1:
-            torch.save(model.state_dict(), f'../model4/model_{name}.pt')
-        test_df.to_csv(f"../valid4/pred_{name}.csv", index=False)
+            torch.save(model.state_dict(), f'../model6/model_{name}_pos.pt')
+            best_f1 = macro_F1
+            test_df.to_csv(f"../valid6/pred_{name}_pos.csv", index=False)
         print(f"macro F1: {macro_F1}")
         scheduler.step(macro_F1)
+    print('max macro F1:', best_f1)
     submit_set = MyDataSet4(submit_set_, mode='predict')
     submit_set_iter = iter(submit_set)
     preds = []
-    model.load_state_dict(torch.load(f'../model4/model_{name}.pt'))
+    model.load_state_dict(torch.load(f'../model6/model_{name}_pos.pt'))
     with torch.no_grad():
         model.eval()
         for step in range(submit_set.step_max):
@@ -149,9 +196,9 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name):
             pred = [json.dumps(p.tolist()) for p  in pred]
             preds.extend(pred)
     submit_set_[f'label_{name}'] = preds
-    submit_set_.to_csv(f'../submit4/submit_{name}.csv', index=False)
+    submit_set_.to_csv(f'../submit6/submit_{name}_pos.csv', index=False)
     
-for i, (train_idx, test_idx) in enumerate(KFold(shuffle=True, random_state=2022).split(train_set[['sn', 'fault_time','feature', 'servertype', 'label']])):
+for i, (train_idx, test_idx) in enumerate(KFold(n_splits=10, shuffle=True, random_state=2022).split(train_set[['sn', 'fault_time','feature', 'servertype', 'label']])):
     train_set_ = train_set.iloc[train_idx]
     train_set_ = pd.concat([train_set_, train_set_[train_set_.label==0]]).reset_index(drop=True)
     test_set_ = train_set.iloc[test_idx]     
