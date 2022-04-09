@@ -62,7 +62,7 @@ class Block(nn.Modelu):
         x0 = self.conv1d4((x0, mask))
         x0 = x0.permute(0, 2, 1) # 
         mask = mask.permute(0, 2, 1)
-        x0 = self.att((x0, mask))
+        #x0 = self.att((x0, mask))
         return x0  # b*emd
         
         
