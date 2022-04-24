@@ -19,7 +19,7 @@ dir = "D:\\ai-risk\\aliyunwei\\data\\"
 train_log = pd.read_csv(dir + "preliminary_sel_log_dataset.csv")
 train_df = pd.read_csv(dir + 'preliminary_train_label_dataset.csv')
 submit_df = pd.read_csv(dir + 'preliminary_submit_dataset_b.csv')
-train_log_a = pd.read_csv(dir + "preliminary_sel_log_dataset_a.csv")
+train_log_a = pd.read_csv(dir + "preliminary_sel_log_dataset_b.csv")
 train_df_a = pd.read_csv(dir + 'preliminary_train_label_dataset_s.csv')
 train_log = pd.concat([train_log, train_log_a])
 train_df = pd.concat([train_df, train_df_a])
@@ -67,39 +67,6 @@ intervalbucket = [2.0, 21.0, 42.0, 64.0, 89.0, 116.0, 145.47999999999956, 176.0,
 cntbucket = [1.0, 2.0, 3.0, 4.0, 5., 6., 7, 8, 9, 10, 12, 14, 17, 20, 25, 30, 35, 45, 60, 90, 150, 200]
 durationbucket = [1.0, 3.0, 10., 40, 100, 500, 1000, 5000, 10000, 30000, 70000]
 
-# 人工提取句子统计特征
-sentence2id = {'pad': 0}
-sentenceMapLabel = {0: [], 1:[], 2:[], 3:[]}
-for time_seq, msg_seq,  time, label  in zip(train_df.time_seq, train_df.msg_seq, train_df.fault_time, train_df.label):
-    time = datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S')
-    time_minus24h = time - datetime.timedelta(hours=24)
-    time_msg_seq = list(zip(time_seq, msg_seq))
-    time_msg_seq.sort(key=lambda x: x[0])
-    for t, m in time_msg_seq:
-        t = datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S')
-        m = m.strip()
-        if t > time_minus24h and t < time:
-            if m not in sentence2id:
-                sentence2id[m] = len(sentence2id) 
-            sentenceMapLabel[label].append(sentence2id[m])
-
-prior_mean = np.array([0.089383, 0.204945, 0.560175, 0.145498])
-manualfeat = np.zeros((len(sentence2id), 4)) 
-def calFeat(i):
-    classi = Counter(sentenceMapLabel[i])
-    classi_sum = sum(classi.values())
-    for key in classi:
-        classi[key] = classi[key]/classi_sum
-    
-    for j in range(len(sentence2id)):
-        manualfeat[j][i] = classi.get(j, prior_mean[i])
-
-calFeat(0)
-calFeat(1)
-calFeat(2)
-calFeat(3)    
-    
-
 def getbucket(x, bucket):
     for i in range(len(bucket)):
         if x < bucket[i]:
@@ -112,6 +79,7 @@ def seqfilter(time_seq, msg_seq, time):
     time_msg_seq.sort(key=lambda x: x[0])
     time = datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S')
     time_minus24h = time - datetime.timedelta(hours=24)
+    time_add1h = time + datetime.timedelta(hours=1)
     for start in range(len(time_msg_seq)):
         cur_time = datetime.datetime.strptime(time_msg_seq[start][0], '%Y-%m-%d %H:%M:%S')
         if cur_time > time_minus24h:
@@ -127,7 +95,7 @@ def seqfilter(time_seq, msg_seq, time):
     
     for i in range(start+1, len(time_msg_seq)):
         cur_time = datetime.datetime.strptime(time_msg_seq[i][0], '%Y-%m-%d %H:%M:%S')
-        if  cur_time < time:
+        if  cur_time < time_add1h:
             msg = time_msg_seq[i][1].strip()
             if msg == pre_msg:
                 cnt += 1
@@ -148,7 +116,7 @@ def seqfilter(time_seq, msg_seq, time):
                 # ret_msg_seq[-1].extend(manualfeat[id])
                 
     if not ret_msg_seq:
-        return None
+        return json.dumps([lookup1(3*['pad']) + [0, 0, 0]])
     frstInterval = getbucket(frstInterval, intervalbucket)
     cnt = getbucket(cnt, cntbucket)
     duration = getbucket(duration, durationbucket)
@@ -157,11 +125,11 @@ def seqfilter(time_seq, msg_seq, time):
 
 train_df['feature'] = train_df.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 train_df['servertype'] = train_df.server_model.map(servertype2id)
-train_df = train_df[~train_df.feature.isnull()]
-train_df.to_csv('../data/train_set4.csv', index=False)
+# train_df = train_df[~train_df.feature.isnull()]
+train_df.to_csv('../data/train_set7.csv', index=False)
 submit_df['feature'] = submit_df.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 submit_df['servertype'] = submit_df.server_model.map(servertype2id)
-submit_df.to_csv("../data/submit_df4.csv", index=False)
+submit_df.to_csv("../data/submit_df7.csv", index=False)
 
 
 

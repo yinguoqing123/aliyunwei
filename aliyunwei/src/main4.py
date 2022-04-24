@@ -18,6 +18,30 @@ import random
 import os
 import math
 
+class FGM():
+    def __init__(self, model):
+        self.model = model
+        self.backup = {}
+
+    def attack(self, epsilon=0.5, emb_name=['emb1', 'emb2']):
+        # emb_name这个参数要换成你模型中embedding的参数名
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and ('emb1' in name or 'emb2' in name):
+                self.backup[name] = param.data.clone()
+                norm = torch.norm(param.grad)
+                if norm != 0 and not torch.isnan(norm):
+                    r_at = epsilon * param.grad / norm
+                    param.data.add_(r_at)
+
+    def restore(self, emb_name=['emb1', 'emb2']):
+        # emb_name这个参数要换成你模型中embedding的参数名
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and ('emb1' in name or 'emb2' in name): 
+                assert name in self.backup
+                param.data = self.backup[name]
+        self.backup = {} 
+
+
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -56,21 +80,7 @@ class AttentionPooling1D(nn.Module):
         x = x - (1 - mask) * 1e12
         x = F.softmax(x, dim=-2)  # N, w, 1
         return torch.sum(x * xo, dim=-2) # N*emd
-    
-class SENet(nn.Module):
-    def __init__(self, infeatures) -> None:
-        super().__init__()
-        self.dense = nn.Linear(infeatures, infeatures)
-    
-    def forward(self, input):
-        x, mask = input
-        seqlen = x.shape[1]
-        x = F.pad(x, (0, 0, 0, 50-seqlen))
-        mask = F.pad(mask, (0, 50-seqlen))
-        w = torch.sum(x, dim=-1) / torch.sum(mask, dim=-1, keepdim=True) # b, seq_len  
-        w = torch.relu(self.dense(w))
-        out = w.unsqueeze(dim=-1) * x * mask.unsqueeze(dim=-1)
-        return out[:, :seqlen, :]      
+ 
 
 class Model(nn.Module):
     def __init__(self) -> None:
@@ -128,8 +138,9 @@ class Model(nn.Module):
 model = Model()
 def train_and_evaluate(train_set_, test_set_, submit_set_, name):
     model = Model() 
+    fgm = FGM(model)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.4, patience=3)
+    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=3)
     #lr_sche = LambdaLR(optimizer, lr_lambda)
     train_set_ = MyDataSet4(train_set_)
     test_df = test_set_
@@ -140,7 +151,7 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name):
     train_data = iter(train_set_)
     test_data = iter(test_set_)
     best_f1 = 0
-    for epoch in range(40):
+    for epoch in range(30):
         running_loss = 0
         for step in range(train_set_.step_max):
             feat, label = next(train_data)
@@ -149,6 +160,10 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name):
             loss = criterion(pred, label)
             optimizer.zero_grad()
             loss.backward()
+            # fgm.attack() 
+            # loss_adv = criterion(model(feat), label)
+            # loss_adv.backward() 
+            # fgm.restore() 
             optimizer.step()
             running_loss += loss.item()
             if step % 50 == 49:
