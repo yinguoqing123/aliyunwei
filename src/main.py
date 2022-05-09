@@ -34,11 +34,11 @@ def set_seed(seed):
 set_seed(2022)
 
 train_set = pd.read_csv("../tmp_data/train_set.csv")
-# finala_set = pd.read_csv("../tmp_data/finala_set.csv")
-finala_set = pd.read_csv('../tmp_data/test_set_a.csv')
+finala_set = pd.read_csv("../tmp_data/finala_set.csv")
+# finala_set = pd.read_csv('../tmp_data/test_set_a.csv')
 
 
-model = MyModel()
+model = MyModel(att_cate='pool')
 def train_and_evaluate(train_set_, test_set_, submit_set_, name):
     model = MyModel() 
     fgm = FGM(model)

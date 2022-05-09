@@ -22,8 +22,8 @@ deleted_sn = ['SERVER_13006', 'SERVER_20235', 'SERVER_13175', 'SERVER_3805', 'SE
 
 venus_log_train = pd.read_csv(path + "train_data/preliminary_venus_dataset.csv")
 venus_log_train.columns = ['sn', 'venus_time', 'module_cause', 'module']
-# venus_log_test_finala = pd.read_csv('/tcdata/final_venus_dataset_a.csv')
-# venus_log_test_finala.columns = ['sn', 'venus_time', 'module_cause', 'module']
+venus_log_test_finala = pd.read_csv('/tcdata/final_venus_dataset_a.csv')
+venus_log_test_finala.columns = ['sn', 'venus_time', 'module_cause', 'module']
 
 train_label_df = pd.read_csv(path + "train_data/preliminary_train_label_dataset.csv")
 train_label_dfs = pd.read_csv(path + "train_data/preliminary_train_label_dataset_s.csv")
@@ -32,10 +32,10 @@ train_label = train_label[~train_label.sn.isin(deleted_sn)]
 
 test_df_a = pd.read_csv(path + "test_ab/preliminary_submit_dataset_a.csv")
 test_df_b = pd.read_csv(path + "test_ab/preliminary_submit_dataset_b.csv")
-# test_df_finala = pd.read_csv("/tcdata/final_submit_dataset_a.csv")
+test_df_finala = pd.read_csv("/tcdata/final_submit_dataset_a.csv")
 
 venus_log_train = venus_log_train.merge(train_label, on='sn', how='right')
-# venus_log_test_finala = venus_log_test_finala.merge(test_df_finala, on='sn', how='right')
+venus_log_test_finala = venus_log_test_finala.merge(test_df_finala, on='sn', how='right')
 
 venus_dict = {'pad': 0, 'unk': 1}
 for venus in list(venus_log_train[venus_log_train.module_cause.notnull()].module_cause):
@@ -73,16 +73,16 @@ venus_log_train['venus_feature'] = venus_log_train.apply(lambda x: venus_process
 
 venus_log_train = venus_log_train.drop_duplicates(subset=['sn', 'fault_time'])
 
-# venus_log_test_finala['venus_feature'] = venus_log_test_finala.apply(lambda x: venus_process(x.fault_time, x.venus_time, 
-#                                                                                  x.module, x.module_cause), axis=1)
-# venus_log_test_finala = venus_log_test_finala.drop_duplicates(subset=['sn', 'fault_time'])
+venus_log_test_finala['venus_feature'] = venus_log_test_finala.apply(lambda x: venus_process(x.fault_time, x.venus_time, 
+                                                                                 x.module, x.module_cause), axis=1)
+venus_log_test_finala = venus_log_test_finala.drop_duplicates(subset=['sn', 'fault_time'])
 
 test_df_a['venus_feature'] = json.dumps([[0]*4])
 test_df_b['venus_feature'] = json.dumps([[0]*4])
 
 cols = ['sn', 'fault_time', 'venus_feature']
 venus_log_train[cols].to_csv('../../tmp_data/venus_feature_train.csv', index=False)
-# venus_log_test_finala[cols].to_csv("../../tmp_data/venus_feature_finala.csv", index=False)
+venus_log_test_finala[cols].to_csv("../../tmp_data/venus_feature_finala.csv", index=False)
 test_df_a[cols].to_csv("../../tmp_data/venus_feature_test_a.csv", index=False)
 test_df_b[cols].to_csv("../../tmp_data/venus_feature_test_b.csv", index=False)
 

@@ -27,15 +27,15 @@ deleted_sn = ['SERVER_13006', 'SERVER_20235', 'SERVER_13175', 'SERVER_3805', 'SE
 msg_log_train = pd.read_csv(path + "train_data/preliminary_sel_log_dataset.csv")
 msg_log_test_a = pd.read_csv(path + "test_ab/preliminary_sel_log_dataset_a.csv")
 msg_log_test_b = pd.read_csv(path + "test_ab/preliminary_sel_log_dataset_b.csv")
-# msg_log_test_finala = pd.read_cvs("/tcdata/final_sel_log_dataset_a.csv")
+msg_log_test_finala = pd.read_csv("/tcdata/final_sel_log_dataset_a.csv")
 
 train_label_df = pd.read_csv(path + "train_data/preliminary_train_label_dataset.csv")
 train_label_dfs = pd.read_csv(path + "train_data/preliminary_train_label_dataset_s.csv")
-train_label = pd.concat([train_label_df, train_label_dfs])
+train_label = pd.concat([train_label_df, train_label_dfs]).drop_duplicates()
 train_label = train_label[~train_label.sn.isin(deleted_sn)]
 test_df_a = pd.read_csv(path + "test_ab/preliminary_submit_dataset_a.csv")
 test_df_b = pd.read_csv(path + "test_ab/preliminary_submit_dataset_b.csv")
-# test_df_finala = pd.read_csv("/tcdata/final_submit_dataset_a.csv")
+test_df_finala = pd.read_csv("/tcdata/final_submit_dataset_a.csv")
 
 
 # 构建词表
@@ -66,14 +66,15 @@ servermodel2id['pad'] = 0
 msg_log_train = msg_log_train.groupby('sn').agg({'time': list, 'msg': list, 'server_model': max}).reset_index()
 msg_log_test_a = msg_log_test_a.groupby('sn').agg({'time': list, 'msg': list, 'server_model': max}).reset_index()
 msg_log_test_b = msg_log_test_b.groupby('sn').agg({'time': list, 'msg': list, 'server_model': max}).reset_index()
-# msg_log_test_finala = msg_log_test_finala = groupby('sn').agg({'time': list, 'msg': list, 'server_model': max}).reset_index()
+msg_log_test_finala = msg_log_test_finala.groupby('sn').agg({'time': list, 'msg': list, 'server_model': max}).reset_index()
 msg_log_train.columns = ['sn', 'time_seq', 'msg_seq', 'server_model']
 msg_log_test_a.columns = ['sn', 'time_seq', 'msg_seq', 'server_model']
 msg_log_test_b.columns = ['sn', 'time_seq', 'msg_seq', 'server_model']
+msg_log_test_finala.columns = ['sn', 'time_seq', 'msg_seq', 'server_model']
 msg_feature_train = msg_log_train.merge(train_label, on='sn', how='right')
 msg_feature_test_a = msg_log_test_a.merge(test_df_a, on='sn', how='right')
 msg_feature_test_b = msg_log_test_b.merge(test_df_b, on='sn', how='right')
-# msg_log_test_finala = msg_log_test_finala.merge(test_df_finala, on='sn', how='right')
+msg_feature_test_finala = msg_log_test_finala.merge(test_df_finala, on='sn', how='right')
 
 
 #  =======================  特征处理  ============================
@@ -136,17 +137,17 @@ def seqfilter(time_seq, msg_seq, time):
 msg_feature_train['msg_feature'] = msg_feature_train.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 msg_feature_test_a['msg_feature'] = msg_feature_test_a.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 msg_feature_test_b['msg_feature'] = msg_feature_test_b.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
-# msg_feature_test_finala['feature'] = msg_feature_test_finala.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
+msg_feature_test_finala['msg_feature'] = msg_feature_test_finala.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 msg_feature_train['server_model'] = msg_feature_train.server_model.map(servermodel2id) 
 msg_feature_test_a['server_model'] = msg_feature_test_a.server_model.map(servermodel2id) 
 msg_feature_test_b['server_model'] = msg_feature_test_b.server_model.map(servermodel2id) 
-# msg_feature_test_finala['server_model'] = msg_feature_test_finala.server_model.map(servermodel2id) 
+msg_feature_test_finala['server_model'] = msg_feature_test_finala.server_model.map(servermodel2id) 
 
 cols = ['sn', 'fault_time', 'msg_feature', 'server_model']
 msg_feature_train[cols].to_csv("../../tmp_data/msg_feature_train.csv", index=False)
 msg_feature_test_a[cols].to_csv("../../tmp_data/msg_feature_test_a.csv", index=False)
 msg_feature_test_b[cols].to_csv("../../tmp_data/msg_feature_test_b.csv", index=False)
-# msg_feature_test_finala[cols].to_csv("../../tmp_data/msg_feature_test_finala.csv", index=False)
+msg_feature_test_finala[cols].to_csv("../../tmp_data/msg_feature_finala.csv", index=False)
 
 
 

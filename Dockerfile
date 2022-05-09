@@ -1,6 +1,6 @@
 # Base Images
 ## 从天池基础镜像构建
-FROM registry.cn-shanghai.aliyuncs.com/aiops_ygq/tianchi_aiops:submit_v1
+FROM registry.cn-shanghai.aliyuncs.com/aiops_ygq/tianchi_aiops:v1
 
 ## 把当前文件夹里的文件构建到镜像的根目录下
 ADD . /

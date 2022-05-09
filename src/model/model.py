@@ -115,15 +115,15 @@ class MyModel(nn.Module):
         self.emb_msginterl = nn.Embedding(intervalbucketnum, 5)
         self.emb_msgcnt = nn.Embedding(cntbucketnum, 3)
         self.emb_msgduration = nn.Embedding(durationbucketnum, 2)
-        self.emb_venus = nn.Embedding(len(venus_dict), 8, padding_idx=0)
-        self.emb_crashdump = nn.Embedding(len(crashdump_dict), 5, padding_idx=0)
+        self.emb_venus = nn.Embedding(len(venus_dict), 5, padding_idx=0)
+        self.emb_crashdump = nn.Embedding(len(crashdump_dict), 3, padding_idx=0)
         if att_cate == 'gate':
             self.att = GateAttentionUnit(46)
         else:
             self.att = AttentionPooling1D(46)
             
-        self.classify = nn.Linear(46+10+32+5, 4)
-        # self.classify = nn.Linear(46+10, 4)
+        self.classify = nn.Linear(46+10+20+3, 4)
+        # self.classify = nn.Linear(46+10)
         # self.classify.bias.data = torch.tensor([-2.38883658, -1.57741002, -0.57731536, -1.96360971])
   
     def forward(self, feat):

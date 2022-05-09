@@ -36,7 +36,7 @@ class MyDataSet():
             msg_batch = torch.tensor(msg_batch)  # batch_size * sentence_max * word_num
             venus_batch = torch.tensor(venus_batch)
             msg_mask = pad_sequence(msg_mask, batch_first=True)
-            venus_mask = pad_sequence(msg_mask, batch_first=True)
+            venus_mask = pad_sequence(venus_mask, batch_first=True)
             servermodel = torch.tensor(list(self.data.iloc[start:end].server_model))
             crashdump = torch.tensor(list(self.data.iloc[start:end].crashdump_feature))
             if self.mode != 'predict':
