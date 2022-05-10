@@ -39,20 +39,21 @@ crashdump_log_test_finala = crashdump_log_test_finala.merge(test_df_finala, on='
 
 crashdump_dict = {'pad': 0, 'unk': 1}
 for code in list(crashdump_log_train[crashdump_log_train.fault_code.notnull()].fault_code):
-    crashdump_dict[code] = crashdump_dict.get(code, len(crashdump_dict))
+    for w in code.split('.'):
+        crashdump_dict[w] = crashdump_dict.get(w, len(crashdump_dict))
     
 json.dump(crashdump_dict, open("../../tmp_data/crashdump_dict.json", 'w'))
  
 def crashdump_process(fault_time, crashdump_time, fault_code):
     if crashdump_time is np.nan:
-        return 0
+        return json.dumps([0]*4)
     fault_time = datetime.datetime.strptime(fault_time, '%Y-%m-%d %H:%M:%S')
     crashdump_time = datetime.datetime.strptime(crashdump_time, '%Y-%m-%d %H:%M:%S')
     if not crashdump_time:
-        return 0
+        return json.dumps([0]*4)
     if not fault_time - datetime.timedelta(hours=12) < crashdump_time < fault_time + datetime.timedelta(hours=5):
-        return 0
-    return crashdump_dict.get(fault_code, 1)
+        return json.dumps([0]*4)
+    return json.dumps([crashdump_dict.get(w, 1) for w in fault_code.split('.')])
 
 
 crashdump_log_train['crashdump_feature'] = crashdump_log_train.apply(lambda x: crashdump_process(x.fault_time, x.crashdump_time, 
@@ -64,8 +65,8 @@ crashdump_log_test_finala['crashdump_feature'] = crashdump_log_test_finala.apply
                                                                                  x.fault_code), axis=1)
 crashdump_log_test_finala = crashdump_log_test_finala.drop_duplicates(subset=['sn', 'fault_time'])
 
-test_df_a['crashdump_feature'] = 0
-test_df_b['crashdump_feature'] = 0
+test_df_a['crashdump_feature'] = json.dumps([0]*4)
+test_df_b['crashdump_feature'] = json.dumps([0]*4)
 
 cols = ['sn', 'fault_time', 'crashdump_feature']
 crashdump_log_train[cols].to_csv('../../tmp_data/crashdump_feature_train.csv', index=False)

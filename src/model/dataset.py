@@ -38,7 +38,7 @@ class MyDataSet():
             msg_mask = pad_sequence(msg_mask, batch_first=True)
             venus_mask = pad_sequence(venus_mask, batch_first=True)
             servermodel = torch.tensor(list(self.data.iloc[start:end].server_model))
-            crashdump = torch.tensor(list(self.data.iloc[start:end].crashdump_feature))
+            crashdump = torch.tensor([json.loads(feat) for feat in list(self.data.iloc[start:end].crashdump_feature)])
             if self.mode != 'predict':
                 labels = torch.tensor(list(self.data.iloc[start:end].label))
                 yield  (msg_batch, msg_mask, venus_batch, venus_mask, servermodel, crashdump), labels

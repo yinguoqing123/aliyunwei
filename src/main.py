@@ -25,7 +25,6 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
     np.random.seed(seed)  # Numpy module.
     random.seed(seed)  # Python random module.
-
     torch.backends.cudnn.enabled = False 
     torch.backends.cudnn.benchmark = False
     os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
@@ -38,9 +37,8 @@ finala_set = pd.read_csv("../tmp_data/finala_set.csv")
 # finala_set = pd.read_csv('../tmp_data/test_set_a.csv')
 
 
-model = MyModel(att_cate='pool')
-def train_and_evaluate(train_set_, test_set_, submit_set_, name):
-    model = MyModel() 
+def train_and_evaluate(train_set_, test_set_, submit_set_, name, att_cate='pool'):
+    model = MyModel(att_cate=att_cate) 
     fgm = FGM(model)
     optimizer = optim.AdamW(model.parameters(), lr=1e-3)
     scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=2)
@@ -84,7 +82,7 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name):
         if macro_F1 > best_f1:
             torch.save(model.state_dict(), f'../model/model_{name}.pt')
             best_f1 = macro_F1
-            test_df.to_csv(f"../submission/pred_{name}.csv", index=False)
+            test_df.to_csv(f"../submission/pred.csv", index=False)
         print(f"macro F1: {macro_F1}")
         print(f"max macro F1: {best_f1}")
         scheduler.step(macro_F1)
@@ -101,12 +99,23 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name):
             pred = torch.softmax(pred, dim=-1).numpy()
             pred = [json.dumps(p.tolist()) for p  in pred]
             preds.extend(pred)
-    submit_set_[f'label_{name}'] = preds
-    submit_set_.to_csv(f'../submission/submit_{name}.csv', index=False)
+    submit_set_[f'label_{att_cate}_{name}'] = preds
+    submit_set_.to_csv(f'../submission/submit.csv', index=False)
     
 for i, (train_idx, test_idx) in enumerate(StratifiedKFold(n_splits=10, shuffle=True, random_state=2021).split(train_set, train_set.label)):
     train_set_ = train_set.iloc[train_idx]
     train_set_ = pd.concat([train_set_, train_set_[train_set_.label==0]]).reset_index(drop=True)
     test_set_ = train_set.iloc[test_idx]     
+    train_and_evaluate(train_set_, test_set_, finala_set, i, att_cate='gate')
+    print('=====================================')
+    
+print("=========================  模型1训练结束  ===========================")
+
+for i, (train_idx, test_idx) in enumerate(StratifiedKFold(n_splits=10, shuffle=True, random_state=2022).split(train_set, train_set.label)):
+    train_set_ = train_set.iloc[train_idx]
+    train_set_ = pd.concat([train_set_, train_set_[train_set_.label==0]]).reset_index(drop=True)
+    test_set_ = train_set.iloc[test_idx]     
     train_and_evaluate(train_set_, test_set_, finala_set, i)
     print('=====================================')
+    
+print("=========================  模型2训练结束  ===========================")

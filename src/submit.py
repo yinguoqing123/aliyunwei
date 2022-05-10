@@ -3,32 +3,21 @@ import pandas as pd
 import json 
 import os
 
-n = 5
-df = pd.read_csv(f"../submission/submit_9.csv")
-# submit_df = pd.read_csv("/tcdata/final_submit_dataset_a.csv")[['sn', 'fault_time']]
+
+df = pd.read_csv(f"../submission/submit.csv")
+submit_df = pd.read_csv("/tcdata/final_submit_dataset_a.csv")[['sn', 'fault_time']]
+print("df shape:", df.shape)
+print("submit_df shape:", submit_df.shape)
+print("submit中存在df中不存在:", submit_df[~submit_df.sn.isin(df.sn)].shape)
 
 def score(x):
-    label_0, label_1, label_2, label_3, label_4 = np.array(json.loads(x.label_0)), np.array(json.loads(x.label_1)), np.array(json.loads(x.label_2)), np.array(json.loads(x.label_3)), np.array(json.loads(x.label_4))
-    label_5, label_6, label_7, label_8, label_9 = np.array(json.loads(x.label_5)), np.array(json.loads(x.label_6)), np.array(json.loads(x.label_7)), np.array(json.loads(x.label_8)), np.array(json.loads(x.label_9))
-    label = (label_0 + label_1 + label_2 + label_3 + label_4 + label_5 + label_6 +label_7 + label_8 + label_9)/10
-    # label = label.argmax()
-    label = label.max()
+    score = np.array([np.array(json.loads(score)) for score in x])
+    score = (score**2).sum(axis=0) / (1 + score.sum(axis=0))
+    label = score.argmax()
     return label
 
-def score1(x):
-    label_0, label_1, label_2, label_3, label_4 = np.array(json.loads(x.label_0)), np.array(json.loads(x.label_1)), np.array(json.loads(x.label_2)), np.array(json.loads(x.label_3)), np.array(json.loads(x.label_4))
-    label_5, label_6, label_7, label_8, label_9 = np.array(json.loads(x.label_5)), np.array(json.loads(x.label_6)), np.array(json.loads(x.label_7)), np.array(json.loads(x.label_8)), np.array(json.loads(x.label_9))
-    label = (label_0**2 + label_1**2 + label_2**2 + label_3**2 + label_4**2 + label_5**2 + label_6**2 + label_7**2 + label_8**2 + label_9**2) / (1+label_0+label_1+label_2+label_3+label_4 +  label_5 + label_6 + label_7 + label_8 + label_9)
-    label = label.argmax()
-    return label
+col = [col for col in df.columns if 'label' in col]
+label = df[col].apply(lambda x: score(x), axis=1)
+df['label'] = label
 
-
-df['label'] = df.apply(score1, axis=1)
-df['positive_p'] = df.apply(score, axis=1)
-
-# print("submit df shape", submit_df.shape)
-# print("df shape", df.shape)
-# submit_df = submit_df[~submit_df.sn.isin(df.sn)]
-# submit_df['label'] = 2
-# df = pd.concat([df[['sn', 'fault_time', 'label']], submit_df[['sn', 'fault_time', 'label']]])
-df[['sn', 'fault_time', 'label', 'positive_p']].to_csv(f"../submission/submit.csv", index=False)
+df[['sn', 'fault_time', 'label']].to_csv(f"../submission/submit.csv", index=False)

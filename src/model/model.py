@@ -122,7 +122,7 @@ class MyModel(nn.Module):
         else:
             self.att = AttentionPooling1D(46)
             
-        self.classify = nn.Linear(46+10+20+3, 4)
+        self.classify = nn.Linear(46+10+20+12, 4)
         # self.classify = nn.Linear(46+10)
         # self.classify.bias.data = torch.tensor([-2.38883658, -1.57741002, -0.57731536, -1.96360971])
   
@@ -145,7 +145,9 @@ class MyModel(nn.Module):
         venus = torch.sum(venus, dim=1) / torch.sum(venus_mask, dim=-1, keepdim=True)
         
         server_model = self.emb_servermodel(server_model)
-        crashdump = self.emb_crashdump(crashdump)
+        
+        crashdump = self.emb_crashdump(crashdump) # b, 4, dim
+        crashdump = crashdump.view(b, -1)
 
         score = self.classify(torch.concat([att_emb, venus, server_model, crashdump], dim=-1))
         # score = self.classify(torch.concat([att_emb, server_model], dim=-1))
