@@ -80,7 +80,7 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name, att_cate='pool'
         test_df['pred'] = preds
         macro_F1 =  macro_f1(test_df)
         if macro_F1 > best_f1:
-            torch.save(model.state_dict(), f'../model/model_{name}.pt')
+            torch.save(model.state_dict(), f'../model/model_{att_cate}_{name}.pt')
             best_f1 = macro_F1
             test_df.to_csv(f"../submission/pred.csv", index=False)
         print(f"macro F1: {macro_F1}")
@@ -90,7 +90,7 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name, att_cate='pool'
     submit_set = MyDataSet(submit_set_, mode='predict')
     submit_set_iter = iter(submit_set)
     preds = []
-    model.load_state_dict(torch.load(f'../model/model_{name}.pt'))
+    model.load_state_dict(torch.load(f'../model/model_{att_cate}_{name}.pt'))
     with torch.no_grad():
         model.eval()
         for step in range(submit_set.step_max):

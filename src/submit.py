@@ -16,7 +16,7 @@ def score(x):
     label = score.argmax()
     return label
 
-col = [col for col in df.columns if 'label' in col]
+col = [col for col in df.columns if 'label_' in col]
 label = df[col].apply(lambda x: score(x), axis=1)
 df['label'] = label
 

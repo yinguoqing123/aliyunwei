@@ -98,9 +98,9 @@ class GateAttentionUnit(nn.Module):
         q, k = self.rope(q), self.rope(k)
         A = torch.matmul(q, k.transpose(1, 2)) / (self.key_size**0.5)
         A = torch.softmax(A * mask_trans + (1-mask_trans) * -1e12, dim=-1)
-        # out = torch.matmul(A, v) * u
-        out = torch.matmul(A, v) 
-        # out = self.o_dense(out)
+        out = torch.matmul(A, v) * u
+        # out = torch.matmul(A, v) 
+        out = self.o_dense(out)
         prob = self.query(out).squeeze()  # 
         prob = prob * mask - (1 - mask) * 1e12
         prob = torch.softmax(prob, dim=-1)
@@ -150,6 +150,5 @@ class MyModel(nn.Module):
         crashdump = crashdump.view(b, -1)
 
         score = self.classify(torch.concat([att_emb, venus, server_model, crashdump], dim=-1))
-        # score = self.classify(torch.concat([att_emb, server_model], dim=-1))
         return score
     
