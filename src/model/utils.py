@@ -4,7 +4,7 @@ from torchtext.vocab import vocab
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 from sklearn.model_selection import train_test_split
 
-def  macro_f1(overall_df):
+def  macro_f1(overall_df, pred):
     """
     计算得分
     :param target_df: [sn,fault_time,label]
@@ -16,9 +16,9 @@ def  macro_f1(overall_df):
 
     macro_F1 =  0.
     for i in  range(len(weights)):
-        TP =  len(overall_df[(overall_df['label'] == i) & (overall_df['pred'] == i)])
-        FP =  len(overall_df[(overall_df['label'] != i) & (overall_df['pred'] == i)])	
-        FN =  len(overall_df[(overall_df['label'] == i) & (overall_df['pred'] != i)])
+        TP =  len(overall_df[(overall_df['label'] == i) & (overall_df[pred] == i)])
+        FP =  len(overall_df[(overall_df['label'] != i) & (overall_df[pred] == i)])	
+        FN =  len(overall_df[(overall_df['label'] == i) & (overall_df[pred] != i)])
         precision = TP /  (TP + FP)  if  (TP + FP)  >  0  else  0
         recall = TP /  (TP + FN)  if  (TP + FN)  >  0  else  0
         F1 =  2  * precision * recall /  (precision + recall)  if  (precision + recall)  >  0  else  0

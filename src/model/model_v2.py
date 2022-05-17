@@ -1,4 +1,6 @@
 # 序列格式微调  加入位置position  
+from cmath import inf
+from unicodedata import bidirectional
 import torch
 from torch import nn, optim
 from torch.nn import functional as F
@@ -21,31 +23,6 @@ lookup1 = torch.load("../tmp_data/word2idx.pk")
 venus_dict = json.load(open('../tmp_data/venus_dict.json', 'r'))
 crashdump_dict = json.load(open('../tmp_data/crashdump_dict.json', 'r'))
 
-class AttentionAndLSTM(nn.Module):
-    """通过加性Attention,将向量序列融合为一个定长向量
-    """
-    def __init__(self, in_features, lstm_features=26, **kwargs):
-        super(AttentionAndLSTM, self).__init__(**kwargs)
-        assert lstm_features%2 == 0, 'lstm_features must be even'
-        self.lstm_features = lstm_features
-        self.in_features = in_features # 词向量维度
-        # self.k_dense = nn.Linear(self.in_features-self.lstm_features,self.in_features-self.lstm_features, bias=False)
-        self.lstm = nn.GRU(lstm_features, lstm_features//2, batch_first=True, bidirectional=True)
-        self.o_dense = nn.Linear(self.lstm_features, 1, bias=False)
-    def forward(self, inputs):
-        xo, mask = inputs
-        mask = mask.unsqueeze(-1)
-        # x = self.k_dense(xo)
-        x1, x2 = xo[..., :self.lstm_features], xo[..., self.lstm_features:]
-        x1, _ = self.lstm(x1)
-        # x2 = self.k_dense(x2)
-        xo = torch.cat([x1, x2], dim=-1)
-        # x = self.k_dense(x)
-        x = self.o_dense(x1)  # N, s, 1
-        x = x - (1 - mask) * 1e12
-        x = F.softmax(x, dim=-2)  # N, w, 1
-        return torch.sum(x * xo, dim=-2) # N*emd
-    
 class AttentionPooling1D(nn.Module):
     """通过加性Attention,将向量序列融合为一个定长向量
     """
@@ -63,19 +40,21 @@ class AttentionPooling1D(nn.Module):
         x = F.softmax(x, dim=-2)  # N, w, 1
         return torch.sum(x * xo, dim=-2) # N*emd
     
-class AttentionPooling1DMsg(nn.Module):
+class AttentionForLSTM(nn.Module):
     """通过加性Attention,将向量序列融合为一个定长向量
     """
-    def __init__(self, in_features, **kwargs):
-        super(AttentionPooling1DMsg, self).__init__(**kwargs)
+    def __init__(self, in_features,  **kwargs):
+        super(AttentionForLSTM, self).__init__(**kwargs)
+        assert in_features%2 == 0, 'in_features must be even'
         self.in_features = in_features # 词向量维度
-        self.k_dense = nn.Linear(26, 26, bias=False)
-        self.o_dense = nn.Linear(26, 1, bias=False)
+        # self.k_dense = nn.Linear(self.in_features, self.in_features, bias=False)
+        self.lstm = nn.LSTM(in_features, in_features//2, batch_first=True, bidirectional=True)
+        self.o_dense = nn.Linear(self.in_features, 1, bias=False)
     def forward(self, inputs):
         xo, mask = inputs
+        xo, _ = self.lstm(xo)
         mask = mask.unsqueeze(-1)
-        x = self.k_dense(xo[..., :26])
-        x = self.o_dense(torch.tanh(x))  # N, s, 1
+        x = self.o_dense(torch.tanh(xo))  # N, s, 1
         x = x - (1 - mask) * 1e12
         x = F.softmax(x, dim=-2)  # N, w, 1
         return torch.sum(x * xo, dim=-2) # N*emd
@@ -149,49 +128,39 @@ class GateAttentionUnit(nn.Module):
         return torch.sum(out*prob.unsqueeze(dim=-1), dim=1)
         
         
-class MyModel(nn.Module):
+class MyModel_V2(nn.Module):
     def __init__(self, att_cate='pool') -> None:
-        super(MyModel, self).__init__()
-        self.emb_msg_f1 = nn.Embedding(len(lookup1), 16, padding_idx=0)
-        self.emb_msg_f2 = nn.Embedding(len(lookup1), 8, padding_idx=0) # 152个
-        self.emb_msg_f3 = nn.Embedding(len(lookup1), 10, padding_idx=0) # 498
-        self.emb_servermodel = nn.Embedding(88, 10, padding_idx=0)
-        self.emb_msginterl = nn.Embedding(intervalbucketnum, 5)
-        self.emb_msgcnt = nn.Embedding(cntbucketnum, 3)
-        self.emb_msgduration = nn.Embedding(durationbucketnum, 2)
-        self.emb_venus = nn.Embedding(len(venus_dict), 3, padding_idx=0)
+        super(MyModel_V2, self).__init__()
+        self.emb_msg_f1 = nn.Embedding(len(lookup1), 12, padding_idx=0)
+        self.emb_msg_f2 = nn.Embedding(len(lookup1), 6, padding_idx=0) # 152个
+        self.emb_msg_f3 = nn.Embedding(len(lookup1), 8, padding_idx=0) # 498
+        self.emb_servermodel = nn.Embedding(88, 8, padding_idx=0)
+        self.emb_venus = nn.Embedding(len(venus_dict), 4, padding_idx=0)
         # self.emb_crashdump = nn.Embedding(len(crashdump_dict), 2, padding_idx=0)
         if 'gate' in att_cate:
-            self.att = GateAttentionUnit(44)
+            self.att = GateAttentionUnit(34)
         if 'lstm' in att_cate:
-            self.att = AttentionAndLSTM(44, 36)
-        if 'pool_msg' in att_cate:
-            self.att = AttentionPooling1DMsg(44)
+            self.att = AttentionForLSTM(26)
         else:
-            self.att = AttentionPooling1D(44)
+            self.att = AttentionPooling1D(34)
             
-        self.classify = nn.Linear(44+10+3*3, 4)
-        # self.dense2 = nn.Linear(10, 4)
+        self.classify = nn.Linear(26+8+4*3, 10)
+        self.dense2 = nn.Linear(10, 4)
         # self.classify.bias.data = torch.tensor([-2.38883658, -1.57741002, -0.57731536, -1.96360971])
   
     def forward(self, feat):
-        msg_batch, msg_mask, venus_batch, venus_mask, server_model, crashdump = feat  # len1 batch_size * sentence_num
+        msgs, msg_mask, venus_batch, venus_mask, server_model, crashdump = feat  # len1 batch_size * sentence_num
         
-        msgs, msg_interval, msg_cnt, msg_duration = msg_batch[..., :3], msg_batch[..., 3], msg_batch[..., 4], msg_batch[..., 5]  # (b, s, 3), (b, s) (b, s) (b, s)
         msg_f1 = self.emb_msg_f1(msgs[..., 0])  # (b, s, 3, d)
         msg_f2 = self.emb_msg_f2(msgs[..., 1]) 
         msg_f3 = self.emb_msg_f3(msgs[..., 2])
         msg_emb = torch.concat([msg_f1, msg_f2, msg_f3], dim=-1)
-        msg_interval = self.emb_msginterl(msg_interval)
-        msg_cnt = self.emb_msgcnt(msg_cnt)
-        msg_duration = self.emb_msgduration(msg_duration)
-        word_emb = torch.concat([msg_emb, msg_interval, msg_cnt, msg_duration], dim=-1)
-        att_emb = self.att((word_emb, msg_mask))
+        att_emb = self.att((msg_emb, msg_mask))
         
         venus = self.emb_venus(venus_batch)
         b, s, n, d = venus.shape
         venus = venus.view(b, s, -1) 
-        venus = torch.sum(venus * venus_mask.unsqueeze(dim=-1), dim=1) / torch.sum(venus_mask, dim=-1, keepdim=True)
+        venus = torch.sum(venus * venus_mask.unsqueeze(dim=-1), dim=1)
         
         server_model = self.emb_servermodel(server_model)
         
@@ -199,5 +168,6 @@ class MyModel(nn.Module):
         # crashdump = crashdump.view(b, -1)
 
         score = self.classify(torch.concat([att_emb, server_model, venus], dim=-1))
-        # score = self.dense2(torch.relu(score))
+        score = self.dense2(torch.relu(score))
         return score
+    

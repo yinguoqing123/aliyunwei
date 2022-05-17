@@ -77,62 +77,27 @@ msg_feature_test_b = msg_log_test_b.merge(test_df_b, on='sn', how='right')
 # msg_feature_test_finala = msg_log_test_finala.merge(test_df_finala, on='sn', how='right')
 
 
-#  =======================  特征处理  ============================
-
-intervalbucket = [2.0, 21.0, 42.0, 64.0, 89.0, 116.0, 145.47999999999956, 176.0, 208.0, 238.0, 266.0, 293.0, 327.0, 362.0400000000009, 402.0, 444.0, 491.0, 539.0, 579.0, 618.0, 661.0, 716.0, 772.0, 835.0, 894.0, 953.0, 1016.0, 1076.0, 1133.0, 1191.0, 1245.0, 1312.0, 1376.0, 1436.0, 1500.0, 1556.0, 1619.0, 1680.0, 1744.0, 1800.0, 1873.0, 1982.0, 2062.0, 2156.0, 2250.0, 2368.5999999999985, 2501.0, 2617.0, 2745.0, 2862.0, 2995.0, 3119.0, 3252.0, 3390.0, 3504.0, 3590.0, 3655.0, 3715.0, 3767.0, 3817.0, 3857.0, 3900.0, 3949.0, 4002.0, 4060.0, 4140.0, 4230.0, 4329.0, 4451.440000000002, 4620.0, 4823.0, 5052.679999999993, 5295.0, 5532.0, 5770.0, 6040.0, 6334.0, 6605.1600000000035, 6883.0, 7201.320000000007, 7697.0, 8358.48000000001, 9096.559999999998, 10086.0, 11147.0, 12345.800000000003, 13803.0, 15678.920000000013, 17796.079999999987, 20064.359999999986, 22474.0, 24988.0, 27292.0, 28895.0, 30239.51999999999, 32214.0, 34237.71999999997, 38868.76000000001, 46575.0, 56198.12000000046]
-cntbucket = [1.0, 2.0, 3.0, 4.0, 5., 6., 7, 8, 9, 10, 12, 14, 17, 20, 25, 30, 35, 45, 60, 90, 150, 200]
-durationbucket = [1.0, 3.0, 10., 40, 100, 500, 1000, 5000, 10000, 30000, 70000]
-
-def getbucket(x, bucket):
-    for i in range(len(bucket)):
-        if x < bucket[i]:
-            return i
-    return len(bucket)
-
 def seqfilter(time_seq, msg_seq, time):
     ret_msg_seq = []
     time_msg_seq = list(zip(time_seq, msg_seq))
     time_msg_seq.sort(key=lambda x: x[0])
     time = datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S')
     time_minus24h = time - datetime.timedelta(hours=72)
-    msgdict = defaultdict(lambda :[])
+    msg_visited = set()
     for cur_time, msg in time_msg_seq:
         cur_time = datetime.datetime.strptime(cur_time, '%Y-%m-%d %H:%M:%S')
         if cur_time > time_minus24h and cur_time < time + datetime.timedelta(hours=12):
-            msgdict[msg] = msgdict[msg] + [cur_time]
-        
-    for msg in msgdict: 
-        msg_process = [word.strip().lower() for word in msg.strip().split('|')][:3]
-        msg_process += (3-len(msg_process)) * ['pad']
-        msg_process = lookup1(msg_process)
-        curtime_seq = msgdict[msg]
-        curtime_seq.sort()
-        pretime = curtime_seq[0]
-        frstInterval = (time - pretime).total_seconds()
-        cnt = 1
-        duration = 0
-        for curtime in curtime_seq[1:]:
-            if (curtime - pretime).total_seconds() <  10 * 3600:
-                cnt += 1
-                duration = (curtime - pretime).total_seconds()
-            else:
-                frstInterval = getbucket(frstInterval, intervalbucket)
-                cnt = getbucket(cnt, cntbucket)
-                duration = getbucket(duration, durationbucket)
-                ret_msg_seq.append((msg_process + [frstInterval, cnt, duration], pretime))
-                pretime = curtime
-                frstInterval = (time - pretime).total_seconds()
-                cnt = 1
-                duration = 0
-        frstInterval = getbucket(frstInterval, intervalbucket)
-        cnt = getbucket(cnt, cntbucket)
-        duration = getbucket(duration, durationbucket)
-        ret_msg_seq.append((msg_process + [frstInterval, cnt, duration], pretime))
+            if msg not in msg_visited:
+                msg_visited.add(msg)
+                msg_process = [word.strip().lower() for word in msg.strip().split('|')][:3]
+                msg_process += (3-len(msg_process)) * ['pad']
+                msg_process = lookup1(msg_process)
+                ret_msg_seq.append(msg_process)
+
     if not ret_msg_seq:
-        return json.dumps([lookup1(3*['pad']) + [0, 0, 0]])
-    ret_msg_seq.sort(key=lambda x: x[1])
-    ret_msg_seq = [ret_msg[0] for ret_msg in ret_msg_seq]
-    return json.dumps(ret_msg_seq[-50:])   
+        return json.dumps([lookup1(3*['pad'])])
+    
+    return json.dumps(ret_msg_seq[-40:])   
 
 msg_feature_train['msg_feature'] = msg_feature_train.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 msg_feature_test_a['msg_feature'] = msg_feature_test_a.apply(lambda x: seqfilter(x.time_seq, x.msg_seq, x.fault_time), axis=1)
@@ -143,21 +108,6 @@ msg_feature_test_a['server_model'] = msg_feature_test_a.server_model.map(serverm
 msg_feature_test_b['server_model'] = msg_feature_test_b.server_model.map(servermodel2id) 
 # msg_feature_test_finala['server_model'] = msg_feature_test_finala.server_model.map(servermodel2id) 
 
-# def ss(time_seq, msg_seq, time):
-#     ret_msg_seq = []
-#     time_msg_seq = list(zip(time_seq, msg_seq))
-#     time_msg_seq.sort(key=lambda x: x[0])
-#     time = datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S')
-#     time_minus24h = time - datetime.timedelta(hours=72)
-#     for cur_time, msg in time_msg_seq:
-#         cur_time = datetime.datetime.strptime(cur_time, '%Y-%m-%d %H:%M:%S')
-#         if cur_time > time_minus24h and cur_time < time + datetime.timedelta(hours=12):
-#             if msg not in ret_msg_seq:
-#                 ret_msg_seq.append(msg)
-#     return json.dumps(ret_msg_seq[-50:])
-    
-    
-# msg_feature_train['msg_text'] = msg_feature_train.apply(lambda x: ss(x.time_seq, x.msg_seq, x.fault_time), axis=1)
 cols = ['sn', 'fault_time', 'msg_feature', 'server_model']
 msg_feature_train[cols].to_csv("../../tmp_data/msg_feature_train.csv", index=False)
 msg_feature_test_a[cols].to_csv("../../tmp_data/msg_feature_test_a.csv", index=False)
@@ -165,6 +115,6 @@ msg_feature_test_b[cols].to_csv("../../tmp_data/msg_feature_test_b.csv", index=F
 # msg_feature_test_finala[cols].to_csv("../../tmp_data/msg_feature_finala.csv", index=False)
 
 
-"""
-msglog : 1491 152 498 三个种类数
-"""
+
+
+          

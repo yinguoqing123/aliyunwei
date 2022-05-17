@@ -26,19 +26,18 @@ class MyDataSet():
                 msg_sentence_max = max(msg_sentence_max, len(msgs))
                 
             for sample in list(self.data.iloc[start:end].venus_feature.values):
-                venus = json.loads(sample)   # 二维数组 sentence_num * 3 
+                venus = json.loads(sample)   
                 venus_batch.append(torch.tensor(venus))         
                 venus_mask.append(torch.ones(len(venus)))
-                venus_sentence_max = max(venus_sentence_max, len(venus))
             
             msg_batch = np.array([F.pad(sample, (0, 0, 0, msg_sentence_max-sample.shape[0])).numpy() for sample in msg_batch])
-            venus_batch = np.array([F.pad(sample, (0, 0, 0, venus_sentence_max-sample.shape[0])).numpy() for sample in venus_batch])
+            # venus_batch = np.array([F.pad(sample, (0, 0, 0, venus_sentence_max-sample.shape[0])).numpy() for sample in venus_batch])
             msg_batch = torch.tensor(msg_batch)  # batch_size * sentence_max * word_num
-            venus_batch = torch.tensor(venus_batch)
+            venus_batch = pad_sequence(venus_batch, batch_first=True)
             msg_mask = pad_sequence(msg_mask, batch_first=True)
             venus_mask = pad_sequence(venus_mask, batch_first=True)
             servermodel = torch.tensor(list(self.data.iloc[start:end].server_model))
-            crashdump = torch.tensor([json.loads(feat) for feat in list(self.data.iloc[start:end].crashdump_feature)])
+            crashdump = torch.tensor([json.loads(line) for line in list(self.data.iloc[start:end].crashdump_feature)], dtype=torch.int)
             if self.mode != 'predict':
                 labels = torch.tensor(list(self.data.iloc[start:end].label))
                 yield  (msg_batch, msg_mask, venus_batch, venus_mask, servermodel, crashdump), labels

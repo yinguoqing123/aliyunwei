@@ -13,6 +13,7 @@ from torch.optim.lr_scheduler import *
 from model.utils import macro_f1, FGM
 from model.dataset import MyDataSet
 from model.model import MyModel
+from model.model_v2 import MyModel_V2
 import random
 import os
 import warnings
@@ -33,8 +34,18 @@ def set_seed(seed):
 set_seed(2022)
 
 train_set = pd.read_csv("../tmp_data/train_set.csv")
-finala_set = pd.read_csv("../tmp_data/finala_set.csv")
-# finala_set = pd.read_csv('../tmp_data/test_set_a.csv')
+test_seta = pd.read_csv("../tmp_data/test_set_a.csv")
+test_seta_label = pd.read_csv("../data/test_ab/preliminary_test_label_dataset_a.csv")
+test_seta = test_seta.merge(test_seta_label, on=['sn', 'fault_time'], how='inner')
+test_setb = pd.read_csv("../tmp_data/test_set_b.csv")
+test_setb_label = pd.read_csv("../data/test_ab/preliminary_test_label_dataset_b.csv")
+test_setb = test_setb.merge(test_setb_label, on=['sn', 'fault_time'], how='inner')
+
+# train_set['positive_p'] = 1
+# train_set = pd.concat([train_set, test_seta, test_setb])
+
+# finala_set = pd.read_csv("../tmp_data/finala_set.csv")
+finala_set = pd.read_csv('../tmp_data/test_set_a.csv')
 
 
 def train_and_evaluate(train_set_, test_set_, submit_set_, name, att_cate='pool'):
@@ -50,7 +61,7 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name, att_cate='pool'
     train_data = iter(train_set_)
     test_data = iter(test_set_)
     best_f1 = 0
-    for epoch in range(40):
+    for epoch in range(35):
         running_loss = 0
         for step in range(train_set_.step_max):
             feat, label = next(train_data)
@@ -77,12 +88,12 @@ def train_and_evaluate(train_set_, test_set_, submit_set_, name, att_cate='pool'
                 feat, label = next(test_data)
                 pred = model(feat).argmax(dim=-1).numpy()
                 preds.extend(pred)
-        test_df['pred'] = preds
-        macro_F1 =  macro_f1(test_df)
+        test_df[f'pred_{att_cate}_{name}'] = preds
+        macro_F1 =  macro_f1(test_df, f'pred_{att_cate}_{name}')
         if macro_F1 > best_f1:
             torch.save(model.state_dict(), f'../model/model_{att_cate}_{name}.pt')
             best_f1 = macro_F1
-            test_df.to_csv(f"../submission/pred.csv", index=False)
+            test_df.to_csv(f"../submission/pred_{att_cate}.csv", index=False)
         print(f"macro F1: {macro_F1}")
         print(f"max macro F1: {best_f1}")
         scheduler.step(macro_F1)
@@ -106,16 +117,16 @@ for i, (train_idx, test_idx) in enumerate(StratifiedKFold(n_splits=10, shuffle=T
     train_set_ = train_set.iloc[train_idx]
     train_set_ = pd.concat([train_set_, train_set_[train_set_.label==0]]).reset_index(drop=True)
     test_set_ = train_set.iloc[test_idx]     
-    train_and_evaluate(train_set_, test_set_, finala_set, i, att_cate='gate')
+    train_and_evaluate(train_set_, test_set_, finala_set, i, att_cate='pool')
     print('=====================================')
     
-print("=========================  模型1训练结束  ===========================")
+# print("=========================  模型1训练结束  ===========================")
 
-for i, (train_idx, test_idx) in enumerate(StratifiedKFold(n_splits=10, shuffle=True, random_state=2022).split(train_set, train_set.label)):
-    train_set_ = train_set.iloc[train_idx]
-    train_set_ = pd.concat([train_set_, train_set_[train_set_.label==0]]).reset_index(drop=True)
-    test_set_ = train_set.iloc[test_idx]     
-    train_and_evaluate(train_set_, test_set_, finala_set, i)
-    print('=====================================')
+# for i, (train_idx, test_idx) in enumerate(StratifiedKFold(n_splits=10, shuffle=True, random_state=2022).split(train_set, train_set.label)):
+#     train_set_ = train_set.iloc[train_idx]
+#     train_set_ = pd.concat([train_set_, train_set_[train_set_.label==0]]).reset_index(drop=True)
+#     test_set_ = train_set.iloc[test_idx]     
+#     train_and_evaluate(train_set_, test_set_, finala_set, i, att_cate='lstm1')
+#     print('=====================================')
     
-print("=========================  模型2训练结束  ===========================")
+# print("=========================  模型2训练结束  ===========================")

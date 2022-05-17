@@ -46,14 +46,14 @@ train_set = train_label.merge(train_msg_feature, on=['sn', 'fault_time'], how='l
     
 train_set.to_csv("../../tmp_data/test_set_b.csv", index=False)
 
-train_msg_feature = pd.read_csv('../../tmp_data/msg_feature_finala.csv')
-train_venus_feature = pd.read_csv("../../tmp_data/venus_feature_finala.csv")
-train_crashdump_feature = pd.read_csv("../../tmp_data/crashdump_feature_finala.csv")
+# train_msg_feature = pd.read_csv('../../tmp_data/msg_feature_finala.csv')
+# train_venus_feature = pd.read_csv("../../tmp_data/venus_feature_finala.csv")
+# train_crashdump_feature = pd.read_csv("../../tmp_data/crashdump_feature_finala.csv")
 
-train_label = pd.read_csv('/tcdata/final_submit_dataset_a.csv')
+# train_label = pd.read_csv('/tcdata/final_submit_dataset_a.csv')
 
-train_set = train_label.merge(train_msg_feature, on=['sn', 'fault_time'], how='left') \
-    .merge(train_venus_feature, on=['sn', 'fault_time'], how='left') \
-    .merge(train_crashdump_feature, on=['sn', 'fault_time'], how='left')
+# train_set = train_label.merge(train_msg_feature, on=['sn', 'fault_time'], how='left') \
+#     .merge(train_venus_feature, on=['sn', 'fault_time'], how='left') \
+#     .merge(train_crashdump_feature, on=['sn', 'fault_time'], how='left')
     
-train_set.to_csv("../../tmp_data/finala_set.csv", index=False)
+# train_set.to_csv("../../tmp_data/finala_set.csv", index=False)
