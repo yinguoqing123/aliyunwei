@@ -1,5 +1,6 @@
 # aliyunwei
 第三届阿里云磐久智维算法大赛
+复赛12
 
 1. 实验记录
 - 使用crashdump + venus， 两个模型融合, adam优化器： 0.701
